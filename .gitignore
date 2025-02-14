@@ -1,0 +1,5 @@
+venv/
+vcf-monitoring-loginData.json
+vcf-monitoring-accessToken.txt
+vm_ping_monitoring.log
+ping_enabled_vms.json

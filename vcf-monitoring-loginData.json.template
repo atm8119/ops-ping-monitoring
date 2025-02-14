@@ -1,0 +1,8 @@
+{
+    "operationsHost":"YOUR_VCF_OPERATIONS_FQDN ( e.g. vcf-ops01.vmwarespecialists.com )",
+    "loginData":{
+        "username":"YOUR_USERNAME ( e.g. user@domain.com )",
+        "authSource":"YOUR_AUTH_SOURCE ( e.g. local , vIDMAuthSource )",
+        "password":"YOUR_PASSWORD"
+    }
+}
