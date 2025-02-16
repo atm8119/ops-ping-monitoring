@@ -1,5 +1,6 @@
 """
 Copyright (c) 2025 Alonso Trejo Mora
+Fetch New Token for VCF Operations
 """
 import requests
 import os   # Not a Pip dependency. Built into Python.
