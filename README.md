@@ -33,7 +33,7 @@ This tool enables automated management of VM ping monitoring in VMware Cloud Fou
 
 1. Clone this repository or download the files to your local machine:
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/atm8119/ops-ping-monitoring.git
    cd ops-ping-monitoring
    ```
 
