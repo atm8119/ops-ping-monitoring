@@ -1,3 +1,6 @@
+"""
+Copyright (c) 2025 Alonso Trejo Mora
+"""
 import requests
 import os   # Not a Pip dependency. Built into Python.
 import json # Not a Pip dependency. Built into Python.
