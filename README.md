@@ -7,7 +7,7 @@ This tool enables automated management of VM ping monitoring in VMware Cloud Fou
 - **Multiple Operation Modes**:
   - Process a single VM
   - Process multiple VMs
-  - Process all VMs in your environment
+  - Process all VMs in your VCF Operations inventory
 
 - **Smart State Management**:
   - Tracks processed VMs to avoid unnecessary updates
