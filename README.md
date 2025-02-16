@@ -175,16 +175,26 @@ python Enable_VM_Ping_Monitoring.py --debug
    python Enable_VM_Ping_Monitoring.py --all-vms --debug
    ```
 
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+By using, modifying, or distributing this code, you agree to the terms and conditions of the MIT License. This includes:
+
+- The right to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the software
+- The requirement to include the original copyright notice and MIT License in any substantial portions of the code
+- The understanding that the software is provided "as is", without warranty of any kind
+
+For the full license text and terms, please see the [LICENSE](LICENSE) file in this repository.
+
 ## Contributing
+
+By contributing to this project, you agree that your contributions will be licensed under the same MIT License that covers the project. If you do not agree with these terms, please do not contribute to the project.
 
 Contributions are welcome! Please:
 1. Fork the repository
 2. Create a feature branch
 3. Submit a pull request
-
-## License
-
-[Your License Here]
 
 ## Support
 
