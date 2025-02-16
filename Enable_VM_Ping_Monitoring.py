@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+Copyright (c) 2025 Alonso Trejo Mora
 Enable VM Ping Monitoring for VCF Operations
 
 This script provides functionality to enable ping monitoring for Virtual Machines
