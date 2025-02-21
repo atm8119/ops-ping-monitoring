@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 """
-Copyright (c) 2025 Alonso Trejo Mora
 Enable VM Ping Monitoring for VCF Operations
 
 This script provides functionality to enable ping monitoring for Virtual Machines
@@ -106,13 +105,38 @@ class PingEnablementManager:
                 logger.info("New bearer token generated and loaded")
                 return token
 
-    def _load_state(self) -> Dict[str, datetime]:
+    def _load_state(self) -> Dict[str, dict]:
         """Load the state of previously processed VMs"""
         try:
             with open(self.state_file, 'r') as f:
                 data = json.load(f)
-                state = {vm_id: datetime.fromisoformat(timestamp) 
-                        for vm_id, timestamp in data.items()}
+
+                # Convert to new format if needed
+                state = {}
+                for vm_id, value in data.items():
+                    if isinstance(value, str):
+                        # Convert old timestamp format to new format
+                        state[vm_id] = {
+                            "name": "Unknown",
+                            "first_processed": value,
+                            "last_processed": value,
+                            "ops_source": self.ops_fqdn
+                        }
+                    elif isinstance(value, dict):
+                        # Remove ping_enabled flag and ensure ops_source
+                        new_value = {
+                            "name": value.get("name", "Unknown"),
+                            "first_processed": value.get("first_processed", datetime.now().isoformat()),
+                            "last_processed": value.get("last_processed", datetime.now().isoformat()),
+                            "ops_source": value.get("ops_source", self.ops_fqdn)
+                        }
+
+                        # Add action if not present
+                        if "action" not in new_value and "ping_enabled" in value:
+                            new_value["action"] = "ping_enabled" if value["ping_enabled"] else "unknown"
+
+                        state[vm_id] = new_value
+
                 logger.debug(f"Loaded state file with {len(state)} entries")
                 return state
         except FileNotFoundError:
@@ -126,12 +150,16 @@ class PingEnablementManager:
         """Save the current state of processed VMs"""
         try:
             with open(self.state_file, 'w') as f:
-                data = {vm_id: timestamp.isoformat() 
-                        for vm_id, timestamp in self.processed_vms.items()}
-                json.dump(data, f, indent=2)
-                logger.debug(f"Saved state with {len(data)} entries")
+                # Already storing structured data, so just dump directly
+                json.dump(self.processed_vms, f, indent=2)
+                logger.debug(f"Saved state with {len(self.processed_vms)} entries")
         except Exception as e:
             logger.error(f"Error saving state file: {str(e)}")
+
+    def _vm_in_cache(self, vm_id: str) -> bool:
+        """Check if VM is in cache with valid data"""
+        return (vm_id in self.processed_vms and 
+                isinstance(self.processed_vms[vm_id], dict))
 
     def _get_headers(self) -> Dict[str, str]:
         """Get headers for API requests"""
@@ -240,8 +268,9 @@ class PingEnablementManager:
         vm_id = vm_data['identifier']
         vm_name = vm_data['resourceKey']['name']
 
-        if not force_update and vm_id in self.processed_vms:
-            logger.debug(f"Skipping {vm_name} - already processed")
+        # Check if in cache and should skip processing
+        if not force_update and self._vm_in_cache(vm_id):
+            logger.info(f"Skipping {vm_name} - already processed (cached)")
             return False
 
         # Check if update is needed
@@ -259,7 +288,7 @@ class PingEnablementManager:
             required_identifiers = []
             for identifier in vm_data['resourceKey']['resourceIdentifiers']:
                 if identifier['identifierType']['name'] in ['isPingEnabled', 'VMEntityName',
-                                                            'VMEntityObjectID', 'VMEntityVCID']:
+                                                        'VMEntityObjectID', 'VMEntityVCID']:
                     if identifier['identifierType']['name'] == 'isPingEnabled':
                         identifier['value'] = 'true'
                     required_identifiers.append(identifier)
@@ -291,7 +320,16 @@ class PingEnablementManager:
                 )
                 response.raise_for_status()
                 logger.info(f"Successfully updated {vm_name}")
-                self.processed_vms[vm_id] = datetime.now()
+
+                # Store enhanced metadata in cache
+                current_time = datetime.now().isoformat()
+                self.processed_vms[vm_id] = {
+                    "name": vm_name,
+                    "first_processed": self.processed_vms.get(vm_id, {}).get("first_processed", current_time),
+                    "last_processed": current_time,
+                    "ops_source": self.ops_fqdn,
+                    "action": "ping_enabled"
+                }
                 return True
             except Exception as e:
                 logger.error(f"Error updating {vm_name}: {str(e)}")
@@ -300,7 +338,15 @@ class PingEnablementManager:
                 return False
         else:
             logger.debug(f"No update needed for {vm_name} - isPingEnabled already true")
-            self.processed_vms[vm_id] = datetime.now()
+            # Update metadata in cache for skipped VMs
+            current_time = datetime.now().isoformat()
+            self.processed_vms[vm_id] = {
+                "name": vm_name,
+                "first_processed": self.processed_vms.get(vm_id, {}).get("first_processed", current_time),
+                "last_processed": current_time,
+                "ops_source": self.ops_fqdn,
+                "action": "already_enabled"
+            }
             return False
 
     def process_vms(self, vm_names: Optional[List[str]] = None, force_update: bool = False):
@@ -484,7 +530,7 @@ def main() -> Optional[PingEnablementManager]:
 
     except Exception as e:
         logger.error(f"Error in main execution: {str(e)}")
-        return manager  # Return manager even on error so we can check insecure requests
+        return manager  # Return manager even on error to check insecure requests
 
 ## Execution starting point
 if __name__ == "__main__":

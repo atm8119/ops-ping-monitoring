@@ -7,11 +7,15 @@ This tool enables automated management of VM ping monitoring in VMware Cloud Fou
 - **Multiple Operation Modes**:
   - Process a single VM
   - Process multiple VMs
-  - Process all VMs in your VCF Operations inventory
+  - Process all VMs in your environment
 
 - **Smart State Management**:
   - Tracks processed VMs to avoid unnecessary updates
   - Option to force update previously processed VMs
+  - Maintains detailed metadata including:
+    - First processing time
+    - Last processing time
+    - Source Operations instance
 
 - **Robust Error Handling**:
   - Automatic token refresh
@@ -33,7 +37,7 @@ This tool enables automated management of VM ping monitoring in VMware Cloud Fou
 
 1. Clone this repository or download the files to your local machine:
    ```bash
-   git clone https://github.com/atm8119/ops-ping-monitoring.git
+   git clone <repository-url>
    cd ops-ping-monitoring
    ```
 
@@ -122,9 +126,16 @@ The script maintains detailed logs in `vm_ping_monitoring.log`, which includes:
 ## State Management
 
 The script maintains state in `ping_enabled_vms.json` to track:
-- Processed VMs
-- Processing timestamps
-- Update history
+- VM names and identifiers
+- First processing timestamp
+- Last processing timestamp
+- Source Operations Manager
+- Actions taken
+
+This state tracking enables:
+- Skipping already processed VMs
+- Historical tracking of operations
+- Cross-environment awareness
 
 ## Troubleshooting
 
@@ -175,6 +186,17 @@ python Enable_VM_Ping_Monitoring.py --debug
    python Enable_VM_Ping_Monitoring.py --all-vms --debug
    ```
 
+## Project Structure
+```
+ops-ping-monitoring/
+├── Enable_VM_Ping_Monitoring.py     # Main script
+├── Fetch_New_Bearer_Token_VCF_Ops.py # Token management
+├── requirements.txt                  # Python dependencies
+├── README.md                        # This file
+├── vcf-monitoring-loginData.json.template # Config template
+└── .gitignore                       # Git ignore file
+```
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
@@ -202,14 +224,3 @@ For issues or questions:
 1. Check the troubleshooting guide above
 2. Review the logs
 3. Submit an issue on GitHub
-
-## Project Structure
-```
-ops-ping-monitoring/
-├── Enable_VM_Ping_Monitoring.py     # Main script
-├── Fetch_New_Bearer_Token_VCF_Ops.py # Token management
-├── requirements.txt                  # Python dependencies
-├── README.md                        # This file
-├── vcf-monitoring-loginData.json.template # Config template
-└── .gitignore                       # Git ignore file
-```
