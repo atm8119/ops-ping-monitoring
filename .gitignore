@@ -1,5 +1,16 @@
+# Scaffolding / Intermediary Directories
 venv/
+htmlcov/
+
+# Test artifacts
+.pytest_cache
+.coverage
+__pycache__
+
+# Sensitive Data
 vcf-monitoring-loginData.json
 vcf-monitoring-accessToken.txt
+
+# Auto-Generated Data
 vm_ping_monitoring.log
 ping_enabled_vms.json
