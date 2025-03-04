@@ -86,6 +86,7 @@ def test_main_interactive_all_vms():
 def test_main_interactive_invalid_inputs():
     """Test main function handling invalid inputs in interactive mode."""
     from Enable_VM_Ping_Monitoring import main
+    import scheduler
 
     # Mock argparse.ArgumentParser to return empty args (interactive mode)
     mock_args = MagicMock()
@@ -93,6 +94,7 @@ def test_main_interactive_invalid_inputs():
     mock_args.all_vms = None
     mock_args.force = False
     mock_args.debug = False
+    mock_args.command = None  # This is important
 
     with patch('Enable_VM_Ping_Monitoring.parse_arguments', return_value=mock_args):
         # Mock config loading
@@ -101,11 +103,17 @@ def test_main_interactive_invalid_inputs():
             # Mock PingEnablementManager
             mock_manager = MagicMock()
             with patch('Enable_VM_Ping_Monitoring.PingEnablementManager', return_value=mock_manager):
-                # Mock input responses with invalid choices first, then valid ones
-                with patch('builtins.input', side_effect=['4', '1', 'test-vm', 'n']):
-                    # Mock print to avoid output during test
-                    with patch('builtins.print'):
-                        main()
+                # Mock scheduler import and MonitoringScheduler
+                mock_scheduler = MagicMock()
+                mock_scheduler_class = MagicMock(return_value=mock_scheduler)
+                with patch.dict('sys.modules', {'scheduler': scheduler}):
+                    with patch('scheduler.MonitoringScheduler', mock_scheduler_class):
+                        # Mock input responses for option 5 (invalid), then 1, with vm name 'test-vm'
+                        # Note: Changed from 4 to 5 to avoid scheduler path
+                        with patch('builtins.input', side_effect=['5', '1', 'test-vm', 'n']):
+                            # Mock print to avoid output during test
+                            with patch('builtins.print'):
+                                main()
 
-                        # Verify PingEnablementManager.process_vms was called correctly
-                        mock_manager.process_vms.assert_called_once_with(vm_names=['test-vm'], force_update=False)
+                                # Verify PingEnablementManager.process_vms was called correctly
+                                mock_manager.process_vms.assert_called_once_with(vm_names=['test-vm'], force_update=False)

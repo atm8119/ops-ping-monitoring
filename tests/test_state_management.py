@@ -81,3 +81,69 @@ def test_save_state():
                     args, kwargs = mock_json_dump.call_args
                     assert "vm-456" in args[0]
                     assert args[0]["vm-456"]["name"] == "new-vm"
+
+def test_load_state_with_legacy_format():
+    """Test loading state with legacy format (string values instead of dictionaries)."""
+    from Enable_VM_Ping_Monitoring import PingEnablementManager
+
+    # Mock legacy state format
+    mock_state = """{
+        "vm-123": "2025-01-01T00:00:00.000000"
+    }"""
+
+    with patch('builtins.open', mock_open(read_data=mock_state)):
+        with patch.object(PingEnablementManager, '_get_bearer_token', return_value="test-token"):
+            manager = PingEnablementManager("test.vcf.ops.com")
+            assert "vm-123" in manager.processed_vms
+            assert isinstance(manager.processed_vms["vm-123"], dict)
+            assert "first_processed" in manager.processed_vms["vm-123"]
+            assert manager.processed_vms["vm-123"]["name"] == "Unknown"
+
+def test_vm_in_cache():
+    """Test the _vm_in_cache method."""
+    from Enable_VM_Ping_Monitoring import PingEnablementManager
+
+    with patch.object(PingEnablementManager, '_load_state', return_value={}):
+        with patch.object(PingEnablementManager, '_get_bearer_token', return_value="test-token"):
+            manager = PingEnablementManager("test.vcf.ops.com")
+
+            # Test with VM not in cache
+            assert not manager._vm_in_cache("vm-123")
+
+            # Add VM to cache
+            manager.processed_vms["vm-123"] = {
+                "name": "test-vm",
+                "first_processed": "2025-01-01T00:00:00.000000",
+                "last_processed": "2025-01-01T00:00:00.000000",
+                "ops_source": "test.vcf.ops.com"
+            }
+
+            # Test with VM in cache with valid data
+            assert manager._vm_in_cache("vm-123")
+
+            # Test with VM in cache but invalid data type
+            manager.processed_vms["vm-456"] = "invalid data type"
+            assert not manager._vm_in_cache("vm-456")
+
+# Additional tests for test_error_handling.py
+
+def test_error_in_save_state():
+    """Test handling of errors when saving state."""
+    from Enable_VM_Ping_Monitoring import PingEnablementManager
+
+    with patch.object(PingEnablementManager, '_load_state', return_value={}):
+        with patch.object(PingEnablementManager, '_get_bearer_token', return_value="test-token"):
+            manager = PingEnablementManager("test.vcf.ops.com")
+
+            # Mock open to raise an exception when saving
+            with patch('builtins.open', side_effect=PermissionError("Permission denied")):
+                # Should not raise an exception
+                manager._save_state()
+
+def test_print_security_notice():
+    """Test the print_security_notice function."""
+    from Enable_VM_Ping_Monitoring import print_security_notice
+
+    with patch('builtins.print') as mock_print:
+        print_security_notice()
+        assert mock_print.call_count > 0

@@ -104,27 +104,125 @@ def test_token_fetch_integration(setup_test_files):
 def test_full_workflow_integration():
     """Test the full workflow from args parsing to VM processing."""
     from Enable_VM_Ping_Monitoring import main
+    import scheduler
 
-    # Mock command line arguments
-    with patch('sys.argv', ['Enable_VM_Ping_Monitoring.py', '--vm-name', 'test-vm-1', '--force']):
-        # Mock config file
-        mock_config = '{"operationsHost":"test-integration.vcf.ops.com"}'
+    # Mock scheduler module to avoid starting real scheduled jobs
+    with patch.dict('sys.modules', {'scheduler': MagicMock()}):
+        # Mock the scheduler MonitoringScheduler class
+        mock_scheduler_class = MagicMock()
+        mock_scheduler_instance = MagicMock()
+        mock_scheduler_class.return_value = mock_scheduler_instance
+        
+        # Replace the imported scheduler's MonitoringScheduler with our mock
+        scheduler.MonitoringScheduler = mock_scheduler_class
 
-        with patch('builtins.open', mock_open(read_data=mock_config)):
-            # Mock PingEnablementManager methods
-            with patch('Enable_VM_Ping_Monitoring.PingEnablementManager') as MockManager:
-                # Create a mock instance that will be returned by the constructor
-                mock_instance = MagicMock()
-                MockManager.return_value = mock_instance
+        # Mock command line arguments
+        with patch('sys.argv', ['Enable_VM_Ping_Monitoring.py', '--vm-name', 'test-vm-1', '--force']):
+            # Mock config file
+            mock_config = '{"operationsHost":"test-integration.vcf.ops.com"}'
 
+            with patch('builtins.open', mock_open(read_data=mock_config)):
+                # Mock PingEnablementManager methods
+                with patch('Enable_VM_Ping_Monitoring.PingEnablementManager') as MockManager:
+                    # Create a mock instance that will be returned by the constructor
+                    mock_instance = MagicMock()
+                    MockManager.return_value = mock_instance
+
+                    # Call main
+                    main()
+
+                    # Verify manager was initialized with correct FQDN
+                    MockManager.assert_called_once_with("test-integration.vcf.ops.com")
+
+                    # Verify process_vms was called with correct arguments
+                    mock_instance.process_vms.assert_called_once_with(vm_names=['test-vm-1'], force_update=True)
+
+                    # Verify scheduler was not actually used
+                    assert not mock_scheduler_instance.start.called
+                    assert not mock_scheduler_instance.stop.called
+
+def test_scheduler_command_integration():
+    """Test integration with the schedule command."""
+    from Enable_VM_Ping_Monitoring import main
+
+    # Create a mock scheduler module
+    mock_scheduler_module = MagicMock()
+    mock_scheduler_instance = MagicMock()
+    mock_scheduler_module.MonitoringScheduler.return_value = mock_scheduler_instance
+
+    # Mock the sys.modules to replace scheduler with our mock
+    with patch.dict('sys.modules', {'scheduler': mock_scheduler_module}):
+        # Mock command line arguments for schedule start
+        with patch('sys.argv', ['Enable_VM_Ping_Monitoring.py', 'schedule', 'start']):
+            # Mock config file (needed if code attempts to load config)
+            mock_config = '{"operationsHost":"test-integration.vcf.ops.com"}'
+            with patch('builtins.open', mock_open(read_data=mock_config)):
                 # Call main
                 main()
 
-                # Verify manager was initialized with correct FQDN
-                MockManager.assert_called_once_with("test-integration.vcf.ops.com")
+                # Verify scheduler start was called
+                mock_scheduler_instance.start.assert_called_once()
+                assert not mock_scheduler_instance.stop.called
 
-                # Verify process_vms was called with correct arguments
-                mock_instance.process_vms.assert_called_once_with(vm_names=['test-vm-1'], force_update=True)
+        # Reset the mock for next test
+        mock_scheduler_instance.reset_mock()
+
+        # Mock command line arguments for schedule stop
+        with patch('sys.argv', ['Enable_VM_Ping_Monitoring.py', 'schedule', 'stop']):
+            # Mock config file
+            with patch('builtins.open', mock_open(read_data=mock_config)):
+                # Call main
+                main()
+
+                # Verify scheduler stop was called
+                mock_scheduler_instance.stop.assert_called_once()
+                assert not mock_scheduler_instance.start.called
+
+        # Reset the mock for next test
+        mock_scheduler_instance.reset_mock()
+
+        # Mock command line arguments for schedule configure
+        with patch('sys.argv', ['Enable_VM_Ping_Monitoring.py', 'schedule', 'configure', 
+                                '--daily', '08:30', '--target-all-vms']):
+            # Mock config file
+            with patch('builtins.open', mock_open(read_data=mock_config)):
+                # Mock process_friendly_schedule_options to return valid updates
+                mock_updates = {
+                    'schedule_type': 'cron',
+                    'cron_expression': '30 8 * * *'
+                }
+                with patch.object(mock_scheduler_module, 'process_friendly_schedule_options', 
+                                    return_value=mock_updates):
+                    # Call main
+                    main()
+
+                    # Verify scheduler configure was called with expected updates
+                    mock_scheduler_instance.configure.assert_called_once()
+                    # The vm_names=None indicates target-all-vms was used
+                    assert 'vm_names' in mock_scheduler_instance.configure.call_args[0][0]
+                    assert mock_scheduler_instance.configure.call_args[0][0]['vm_names'] is None
+
+def test_scheduler_run_now_integration():
+    """Test integration with the schedule run-now command."""
+    from Enable_VM_Ping_Monitoring import main
+
+    # Create a mock scheduler module
+    mock_scheduler_module = MagicMock()
+    mock_scheduler_instance = MagicMock()
+    mock_scheduler_module.MonitoringScheduler.return_value = mock_scheduler_instance
+
+    # Mock the sys.modules to replace scheduler with our mock
+    with patch.dict('sys.modules', {'scheduler': mock_scheduler_module}):
+        # Mock command line arguments for schedule run-now
+        with patch('sys.argv', ['Enable_VM_Ping_Monitoring.py', 'schedule', 'run-now']):
+            # Mock config file
+            mock_config = '{"operationsHost":"test-integration.vcf.ops.com"}'
+            with patch('builtins.open', mock_open(read_data=mock_config)):
+                # Call main
+                main()
+
+                # Verify scheduler run_now was called
+                mock_scheduler_instance.run_now.assert_called_once()
 
 def test_api_token_refresh_integration():
     """Test token refresh during API calls."""

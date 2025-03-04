@@ -11,6 +11,9 @@ __pycache__
 vcf-monitoring-loginData.json
 vcf-monitoring-accessToken.txt
 
+# Configuration Instances from Templates
+vcf-monitoring-schedule.json
+
 # Auto-Generated Data
 vm_ping_monitoring.log
 ping_enabled_vms.json

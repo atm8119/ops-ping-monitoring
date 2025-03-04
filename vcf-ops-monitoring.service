@@ -1,0 +1,16 @@
+[Unit]
+Description=VCF Operations VM Ping Monitoring Scheduler
+After=network.target
+
+[Service]
+Type=simple
+User=vcfadmin
+Group=vcfadmin
+WorkingDirectory=/opt/vcf-ops-monitoring
+ExecStart=/opt/vcf-ops-monitoring/venv/bin/python /opt/vcf-ops-monitoring/Enable_VM_Ping_Monitoring.py schedule start
+ExecStop=/opt/vcf-ops-monitoring/venv/bin/python /opt/vcf-ops-monitoring/Enable_VM_Ping_Monitoring.py schedule stop
+Restart=on-failure
+RestartSec=60
+
+[Install]
+WantedBy=multi-user.target

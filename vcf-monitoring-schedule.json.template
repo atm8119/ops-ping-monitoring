@@ -1,0 +1,11 @@
+{
+  "schedule_type": "interval",
+  "interval_unit": "days",
+  "interval_value": 1,
+  "cron_expression": "0 0 * * *",
+  "vm_names": null,
+  "force_update": false,
+  "enabled": false,
+  "last_run": null,
+  "next_run": null
+}

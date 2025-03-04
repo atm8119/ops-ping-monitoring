@@ -26,6 +26,7 @@ import json
 import os
 import logging
 import argparse
+import sys
 from typing import Dict, List, Optional
 import requests
 import time
@@ -408,8 +409,23 @@ def parse_arguments():
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
 
+    # Create parent parsers for shared options
+    parent_parser = argparse.ArgumentParser(add_help=False)
+    parent_parser.add_argument(
+        '--debug',
+        action='store_true',
+        help='Enable debug logging'
+    )
+
+    # Create subparsers for different commands
+    subparsers = parser.add_subparsers(dest='command', help='Command to execute')
+
+    # Run command - original functionality
+    run_parser = subparsers.add_parser('run', parents=[parent_parser], 
+                                      help='Run VM ping monitoring')
+    
     # Create mutually exclusive group for VM selection
-    vm_group = parser.add_mutually_exclusive_group()
+    vm_group = run_parser.add_mutually_exclusive_group()
     vm_group.add_argument(
         '--vm-name',
         nargs='+',
@@ -421,29 +437,270 @@ def parse_arguments():
         help='Process all VMs in the environment'
     )
 
-    # Other arguments
-    parser.add_argument(
+    # Other run arguments
+    run_parser.add_argument(
         '--force',
         action='store_true',
         help='Force update even if VM was previously processed'
     )
-    parser.add_argument(
-        '--debug',
+
+    # Schedule management commands
+    schedule_parser = subparsers.add_parser('schedule', parents=[parent_parser],
+                                            help='Manage scheduled monitoring')
+    schedule_subparsers = schedule_parser.add_subparsers(dest='schedule_command', 
+                                                        help='Schedule command')
+
+    # Start scheduler
+    start_parser = schedule_subparsers.add_parser('start', 
+                                                help='Start the scheduler')
+    start_parser.add_argument(
+        '--daemon',
         action='store_true',
-        help='Enable debug logging'
+        help='Run scheduler as a background daemon'
     )
+
+    # Stop scheduler
+    schedule_subparsers.add_parser('stop', help='Stop the scheduler')
+
+    # Status scheduler
+    schedule_subparsers.add_parser('status', help='Show scheduler status')
+
+    # Run now (one-time immediate execution)
+    run_now_parser = schedule_subparsers.add_parser('run-now', 
+                                                help='Run monitoring job immediately')
+
+    # Configure scheduler
+    config_parser = schedule_subparsers.add_parser('configure',
+                                            help='Configure the scheduler',
+                                            formatter_class=argparse.RawDescriptionHelpFormatter,
+                                            description="""
+        Configure the VM Ping Monitoring schedule using simple patterns or advanced options.
+
+        EXAMPLES:
+        # Run daily at midnight
+        python Enable_VM_Ping_Monitoring.py schedule configure --daily
+
+        # Run daily at 2:30pm
+        python Enable_VM_Ping_Monitoring.py schedule configure --daily 14:30
+
+        # Run weekly on Sunday at 1am
+        python Enable_VM_Ping_Monitoring.py schedule configure --weekly sun 01:00
+
+        # Run monthly on the 1st at midnight
+        python Enable_VM_Ping_Monitoring.py schedule configure --monthly 1
+
+        # Run every 6 hours
+        python Enable_VM_Ping_Monitoring.py schedule configure --every 6 hours
+
+        # Run every 30 minutes
+        python Enable_VM_Ping_Monitoring.py schedule configure --every 30 minutes
+        """)
+
+    # Create mutually exclusive group for different schedule patterns
+    schedule_pattern_group = config_parser.add_mutually_exclusive_group()
+
+    # Simple schedule patterns
+    schedule_pattern_group.add_argument(
+        '--daily',
+        nargs='?',
+        const='00:00',
+        metavar='HH:MM',
+        help='Run daily at specified time (defaults to midnight)'
+    )
+
+    schedule_pattern_group.add_argument(
+        '--weekly',
+        nargs='+',
+        metavar=('DAY', 'HH:MM'),
+        help='Run weekly on specified day at specified time (day can be: mon, tue, wed, thu, fri, sat, sun)'
+    )
+
+    schedule_pattern_group.add_argument(
+        '--monthly',
+        nargs='+',
+        metavar=('DAY', 'HH:MM'),
+        help='Run monthly on specified day (1-31) at specified time'
+    )
+
+    schedule_pattern_group.add_argument(
+        '--every',
+        nargs=2,
+        metavar=('VALUE', 'UNIT'),
+        help='Run every X time units (units can be: minutes, hours, days)'
+    )
+
+    # Advanced scheduling options
+    advanced_group = config_parser.add_argument_group('Advanced Scheduling Options')
+
+    # Interval schedule options
+    advanced_group.add_argument(
+        '--interval-unit',
+        choices=['minutes', 'hours', 'days'],
+        help='Time unit for interval-based schedule'
+    )
+
+    advanced_group.add_argument(
+        '--interval-value',
+        type=int,
+        help='Number of units for interval-based schedule'
+    )
+
+    # Cron schedule options
+    advanced_group.add_argument(
+        '--cron-expression',
+        help='Cron expression for time-based schedule (e.g., "0 0 * * *" for daily midnight)'
+    )
+
+    # Set schedule type
+    advanced_group.add_argument(
+        '--schedule-type',
+        choices=['interval', 'cron'],
+        help='Type of schedule to use'
+    )
+
+    # Target VMs
+    vm_config_group = config_parser.add_mutually_exclusive_group()
+    vm_config_group.add_argument(
+        '--target-vms',
+        nargs='+',
+        help='VM names to target in scheduled runs'
+    )
+    vm_config_group.add_argument(
+        '--target-all-vms',
+        action='store_true',
+        help='Target all VMs in scheduled runs'
+    )
+
+    # Cache behavior
+    cache_group = config_parser.add_mutually_exclusive_group()
+    cache_group.add_argument(
+        '--use-cache',
+        dest='force_update',
+        action='store_false',
+        help='Use cached VM processing state (default)'
+    )
+    cache_group.add_argument(
+        '--ignore-cache',
+        dest='force_update',
+        action='store_true',
+        help='Ignore cached VM processing state'
+    )
+
+
+    # Set defaults for backward compatibility
+    # If no arguments are provided, default to 'run' command
+    if len(sys.argv) == 1:
+        return parser.parse_args(['run'])
+
+    # Handle backward compatibility for --vm-name, --all-vms without 'run' command
+    if len(sys.argv) > 1 and sys.argv[1] in ['--vm-name', '--all-vms', '--force', '--debug']:
+        modified_args = ['run'] + sys.argv[1:]
+        return parser.parse_args(modified_args)
 
     return parser.parse_args()
 
 ## Main Workflow
 def main() -> Optional[PingEnablementManager]:
-    """Main execution flow with support for both interactive and command-line modes"""
+    """Main execution flow with support for scheduled, interactive, and command-line modes"""
     args = parse_arguments()
 
     # Configure debug logging if requested
-    if args.debug:
+    if hasattr(args, 'debug') and args.debug:
         logger.setLevel(logging.DEBUG)
+        for handler in logger.handlers:
+            handler.setLevel(logging.DEBUG)
         logger.debug("Debug logging enabled")
+
+    # Handle scheduling commands
+    if getattr(args, 'command', None) == 'schedule':
+        import scheduler
+        sched = scheduler.MonitoringScheduler()
+
+        if args.schedule_command == 'start':
+            if args.daemon:
+                print("Starting scheduler in daemon mode...")
+                if scheduler.create_daemon():
+                    sched.start(daemon_mode=True)
+                else:
+                    print("Scheduler started as daemon")
+            else:
+                sched.start(daemon_mode=True)  # Interactive mode
+
+        elif args.schedule_command == 'stop':
+            sched.stop()
+
+        elif args.schedule_command == 'status':
+            status = sched.status()
+            print(scheduler.format_status_output(status))
+
+        elif args.schedule_command == 'run-now':
+            print("\n▶️ Running VM ping monitoring job now...")
+            sched.run_now()
+            print("\n✅ Job execution completed")
+
+            # Display available commands after a run-now
+            print("\n📌 Available commands:")
+            print("  • Check status:   python Enable_VM_Ping_Monitoring.py schedule status")
+            print("  • Configure:      python Enable_VM_Ping_Monitoring.py schedule configure --help")
+
+            if sched.is_running():
+                print("  • Stop scheduler: python Enable_VM_Ping_Monitoring.py schedule stop")
+            else:
+                print("  • Start scheduler: python Enable_VM_Ping_Monitoring.py schedule start")
+
+        elif args.schedule_command == 'configure':
+            config_updates = {}
+
+            # Process user-friendly scheduling options
+            friendly_updates = scheduler.process_friendly_schedule_options(args)
+            if friendly_updates is not None:
+                config_updates.update(friendly_updates)
+
+            # If no friendly options were used, gather traditional options
+            if not config_updates:
+                # Gather configuration updates from traditional options
+                if hasattr(args, 'schedule_type') and args.schedule_type:
+                    config_updates['schedule_type'] = args.schedule_type
+
+                if hasattr(args, 'interval_unit') and args.interval_unit:
+                    config_updates['interval_unit'] = args.interval_unit
+
+                if hasattr(args, 'interval_value') and args.interval_value:
+                    config_updates['interval_value'] = args.interval_value
+
+                if hasattr(args, 'cron_expression') and args.cron_expression:
+                    config_updates['cron_expression'] = args.cron_expression
+
+            # Handle target VM options - these should be processed regardless
+            if hasattr(args, 'target_vms') and args.target_vms:
+                config_updates['vm_names'] = args.target_vms
+
+            if hasattr(args, 'target_all_vms') and args.target_all_vms:
+                config_updates['vm_names'] = None
+
+            # Handle cache behavior option
+            if hasattr(args, 'force_update') and args.force_update is not None:
+                config_updates['force_update'] = args.force_update
+
+            if config_updates:
+                print("\n🔄 Updating scheduler configuration...")
+                sched.configure(config_updates)
+
+                # Add this line to show human-readable schedule description
+                schedule_desc = scheduler.format_schedule_description(sched.config)
+                print(f"\n✅ Schedule set to: {schedule_desc}")
+
+                # Show full status
+                status = sched.status()
+                print("\n" + scheduler.format_status_output(status))
+            else:
+                print("\nℹ️ No configuration changes specified")
+                print("\nFor help with configuration options:")
+                print("  python Enable_VM_Ping_Monitoring.py schedule configure --help")
+
+        # Return avoid accessing run command attributes
+        return None
+
 
     # Load Operations Manager configuration
     try:
@@ -460,12 +717,12 @@ def main() -> Optional[PingEnablementManager]:
     manager = PingEnablementManager(ops_config['operationsHost'])
 
     try:
-
         # Command-line mode
-        if args.vm_name or args.all_vms:
-            vm_names = args.vm_name if args.vm_name else None
-            manager.process_vms(vm_names=vm_names, force_update=args.force)
-            return
+        if hasattr(args, 'vm_name') and args.vm_name or hasattr(args, 'all_vms') and args.all_vms:
+            vm_names = args.vm_name if hasattr(args, 'vm_name') and args.vm_name else None
+            force_update = args.force if hasattr(args, 'force') else False
+            manager.process_vms(vm_names=vm_names, force_update=force_update)
+            return manager
 
         # Interactive mode
         print("\nVCF Operations VM Ping Enablement Manager")
@@ -474,12 +731,13 @@ def main() -> Optional[PingEnablementManager]:
         print("1. Process single VM")
         print("2. Process multiple VMs")
         print("3. Process ALL VMs")
+        print("4. Manage scheduled monitoring")
 
         while True:
-            choice = input("\nEnter choice (1-3): ").strip()
-            if choice in ['1', '2', '3']:
+            choice = input("\nEnter choice (1-4): ").strip()
+            if choice in ['1', '2', '3', '4']:
                 break
-            print("Invalid choice. Please enter 1, 2, or 3.")
+            print("Invalid choice. Please enter 1, 2, 3, or 4.")
 
         force_update = False
         vm_names = None
